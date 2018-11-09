@@ -1,5 +1,4 @@
-# SI18-CTRL-C
-Reposotory para o projeto de SI 2018/2019: Um Gestor de Clipboard Porreirinho
+# CTRL+C: Um Gestor de Clipboard Porreirinho
 
 O objetivo principal deste projeto é desenvolver um gestor do Clipboardcom alguma segurança embutida. Estes gestores são programas que permitem guardar todo o histórico da utilização do Clipboard, e até aceder às entradas anteriores com bastante facilidade, sendo esta uma funcionalidade de grande utilidade e uma das principais motivações para a sua existência. O problema é que alguns (senão todos os) gestores de Clipboard guardam o histórico num ficheiro de texto em texto-limpo, inclusive palavras-passe que possam estar a ser copiadas de um gestor de palavras-passe para um formulário online, ficando assim expostas a cavalos de tróia ou até a utilizadores concorrentes do sistema. Pretende-se que o programa desenvolvido no contexto deste projeto resolva esse problema e adicione valor através do suporte das seguintes funcionalidades:
  - [ ] O histórico do Clipboard deve ser guardado cifrado com uma cifra (e modo de cifra) de qualidade reconhecida (e.g., AES);
