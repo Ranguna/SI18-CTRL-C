@@ -2,7 +2,9 @@
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
+import os.path
 import aes
+import hashez
 
 files_location = "./"
 file_prefix = "."
@@ -104,7 +106,6 @@ class ListBoxWindow(Gtk.Window):
 		userRowHbox.pack_start(Gtk.Label(""), True, True, 0)
 		self.userCombo = Gtk.ComboBoxText()
 		self.userCombo.connect('changed', self.onUserChange)
-		self.userCombo.append("1","asd")
 		userRowHbox.pack_start(self.userCombo, True, True, 0)
 		self.newUserButton = Gtk.Button.new_with_label("New User")
 		self.newUserButton.connect("clicked", self.newUser)
@@ -166,9 +167,10 @@ class ListBoxWindow(Gtk.Window):
 		self.clipboard.connect('owner-change',self.onClipChange)
 		self.ignore_clip = False
 
+		self.ignoreUserChange = False
 
 		self.loggedInUser = None
-		self.currentHashedPass = None
+		self.currentPass = None
 		# listbox_2.show_all()
 	
 
@@ -181,6 +183,10 @@ class ListBoxWindow(Gtk.Window):
 		dialog.destroy()
 
 	def onUserChange(self, widget):
+		if self.ignoreUserChange:
+			self.ignoreUserChange = False
+			return
+
 		dialog = LoginDialog(self, widget.get_active_text())
 		response = dialog.run()
 
@@ -196,28 +202,56 @@ class ListBoxWindow(Gtk.Window):
 		if(loginOk or response == Gtk.ResponseType.CANCEL):
 			self.loggedInUser = widget.get_active_text()
 			#!!! FAZER - fazer hash da pass e guardar em:
-			# self.currentHashedPass = HASH DE PASS AQUI
+			# self.currentPass = HASH DE PASS AQUI
 			dialog.destroy()
 
 	def newUser(self, widget):
+		newUserOk = False
+		response = None
+		name = None
+		passwd = None
+		while not newUserOk and response != Gtk.ResponseType.CANCEL:
 		dialog = CreateAccountDialog(self)
 		response = dialog.run()
 
 		newUserOk = False
 		if(response == Gtk.ResponseType.OK):
-			print(dialog.nameEntry.get_text()) # nome
-			print(dialog.passEntry.get_text()) # pass
-			#!!! FAZER - Criar conta aqui
-			# procurar se j]a existe um ficheiro com aquele nome
-			# fazer o hash da pass com sal, meter na primeira linha do ficheiro
-			# se o user já existir então fazer:
-			# self.promptError("Utilizador já existente.", "O utilizador inserido já se econtra registado.")
+				name = dialog.nameEntry.get_text()
+				passwd = dialog.passEntry.get_text()
 
-		if(newUserOk or response == Gtk.ResponseType.CANCEL):
-			self.loggedInUser = dialog.nameEntry.get_text()
-			#!!! FAZER - fazer hash da pass e guardar em:
-			# self.currentHashedPass = HASH DE PASS AQUI
+				clip_file = files_location + file_prefix + dialog.nameEntry.get_text() + clip_sufix
+				
+				# ver se o ficheiro existe
+				if not os.path.isfile(clip_file):
+					if len(passwd) < 12: # pass pequena
+						self.promptError("Password pequena.", "A password é demasiado pequena, >11.")
+					elif len(name) == 0: # user em branco
+						self.promptError("User vazio.", "O nome de utilizadore está em branco.")
+					else: # ok (y)
+						newUserOk = True
+				else: # se o ficheiro existe com o nome do user, user ja existe
+					self.promptError("Utilizador já existente.", "O utilizador inserido já se econtra registado.")
+
 			dialog.destroy()
+
+		if newUserOk:
+			self.loggedInUser = name
+			self.currentPass = passwd
+			clip_file = files_location + file_prefix + name + clip_sufix
+			hash_file = files_location + file_prefix + name + hash_sufix
+			with open(clip_file, "w") as f:
+				# cria ficheiro do clip e mete lá a pass
+				f.write(hashez.salted(passwd)+"\n")
+			open(hash_file,"w").close() # cria um ficheiro vazio
+
+			# add user to box
+			# a funcao de mudar o utilizador no combobox vai ser executada
+			# dizer para nao pedir a pass porque o utilizador acabou de ser criado
+			self.ignoreUserChange = True
+			# adicionar user
+			self.userCombo.append(name,name)
+			# meter como selecionado
+			self.userCombo.set_active_id(name)
 
 	def onSelection(self, treeview):
 		# não fazer nada se nenhum utilizador estiver ligado
