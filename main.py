@@ -186,7 +186,7 @@ class ListBoxWindow(Gtk.Window):
 			match = re.match(r"\.(.+)(%s|%s|%s)"%(clip_sufix,hash_sufix, keypair_sufix), file)
 			if match != None:
 				try:
-					users[match.group(1)].update(match.group(2))
+					users[match.group(1)].update([match.group(2)])
 				except Exception:
 					users[match.group(1)] = set([match.group(2)])
 
