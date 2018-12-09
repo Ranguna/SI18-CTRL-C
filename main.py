@@ -5,12 +5,15 @@ from gi.repository import Gtk, Gdk
 import os.path
 import re
 import aes
+import rsa
 import hashez
 
 files_location = "./"
 file_prefix = "."
 clip_sufix = "_clip"
 hash_sufix = "_hash"
+keypair_sufix = ".pem"
+# if n files is changed, check load_users' for loop
 
 class CreateAccountDialog(Gtk.Dialog):
 	def __init__(self, parent):
@@ -116,7 +119,7 @@ class ListBoxWindow(Gtk.Window):
 		listbox.add(userRow)
 
 
-		# selection button row
+		# button row selection
 		listbox = Gtk.ListBox()
 		listbox.set_selection_mode(Gtk.SelectionMode.NONE)
 		box_outer.pack_start(listbox, True, True, 0)
@@ -172,15 +175,26 @@ class ListBoxWindow(Gtk.Window):
 		self.ignoreUserChange = False
 
 		self.loggedInUser = None
-		self.currentPass = None
+		self.pubKey = None
+		self.encPrivKey = None
 		# listbox_2.show_all()
 	
 	def load_users(self):
 		self.clearCombo()
+		users = {}
 		for file in os.listdir(files_location):
-			match = re.match(r"\.(.+)_hash", file)
+			match = re.match(r"\.(.+)(%s|%s|%s)"%(clip_sufix,hash_sufix, keypair_sufix), file)
 			if match != None:
-				self.userCombo.append(match.group(1), match.group(1))
+				try:
+					users[match.group(1)].update(match.group(2))
+				except Exception:
+					users[match.group(1)] = set([match.group(2)])
+
+		for user in users:
+			if len(users[user]) == 3:
+				self.userCombo.append(user, user)
+			else:
+				print "Invalid user files %s"%user
 
 
 
@@ -210,9 +224,9 @@ class ListBoxWindow(Gtk.Window):
 			# self.promptError("Password errada", "A password introduzida está errada.")
 
 		if(loginOk or response == Gtk.ResponseType.CANCEL):
+			if(loginOk):
 			self.loggedInUser = widget.get_active_text()
-			#!!! FAZER - fazer hash da pass e guardar em:
-			# self.currentPass = HASH DE PASS AQUI
+				#!!! FAZER - carregar par de chaves
 			dialog.destroy()
 
 	def newUser(self, widget):
@@ -246,17 +260,22 @@ class ListBoxWindow(Gtk.Window):
 
 		if newUserOk:
 			self.loggedInUser = name
-			self.currentPass = passwd
 			clip_file = files_location + file_prefix + name + clip_sufix
 			hash_file = files_location + file_prefix + name + hash_sufix
+			keypair_file = files_location + file_prefix + name + keypair_sufix
+			
+			# gerar a guardar par de chaves rsa
+			rsa.gen_keypair(keypair_file, passwd) #!sht: pode falhar caso nao consiga gravar o ficheiro
+			(self.pubKey, self.encPrivKey) = rsa.load_enckeypair(keypair_file,passwd)
 			with open(clip_file, "w") as f:
-				# cria ficheiro do clip e mete lá a pass
+				# cria ficheiro do clip e mete lá a pass com uma pitadinha de sal
 				f.write(hashez.salted(passwd)+"\n")
-			open(hash_file,"w").close() # cria um ficheiro vazio
+			open(hash_file,"w").close() # cria um ficheiro vazio de hashes
+			
 
 			# add user to box
 			# a funcao de mudar o utilizador no combobox vai ser executada
-			# dizer para nao pedir a pass porque o utilizador acabou de ser criado
+			# dizer para nao pedir a pass porque o utilizador acabou de a meter
 			self.ignoreUserChange = True
 			# adicionar user
 			self.userCombo.append(name,name)

@@ -1,5 +1,14 @@
 # vscode
 .vscode
+
+# user files
+.*_hash
+.*_clip
+.*.pem
+
+# aes test
+fileE.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
