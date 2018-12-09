@@ -225,7 +225,7 @@ class ListBoxWindow(Gtk.Window):
 
 		if(loginOk or response == Gtk.ResponseType.CANCEL):
 			if(loginOk):
-			self.loggedInUser = widget.get_active_text()
+				self.loggedInUser = widget.get_active_text()
 				#!!! FAZER - carregar par de chaves
 			dialog.destroy()
 
