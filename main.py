@@ -142,7 +142,7 @@ class ListBoxWindow(Gtk.Window):
 		box_outer.pack_start(listbox, True, True, 0)
 
 		self.fileButtons = {
-			"verAssi": Gtk.Button.new_with_label("Verificar Ficheiro")
+			"verAssi": Gtk.Button.new_with_label("Verificar Ficheiro") # Verificar ficheiro
 		}
 		fileButton = Gtk.ListBoxRow()
 		fileButtonHbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
