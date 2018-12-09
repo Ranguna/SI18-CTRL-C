@@ -221,11 +221,11 @@ class ListBoxWindow(Gtk.Window):
 		name = None
 		passwd = None
 		while not newUserOk and response != Gtk.ResponseType.CANCEL:
-		dialog = CreateAccountDialog(self)
-		response = dialog.run()
+			dialog = CreateAccountDialog(self)
+			response = dialog.run()
 
-		newUserOk = False
-		if(response == Gtk.ResponseType.OK):
+			newUserOk = False
+			if(response == Gtk.ResponseType.OK):
 				name = dialog.nameEntry.get_text()
 				passwd = dialog.passEntry.get_text()
 
