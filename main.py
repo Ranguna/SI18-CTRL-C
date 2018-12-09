@@ -3,6 +3,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
 import os.path
+import re
 import aes
 import hashez
 
@@ -105,6 +106,7 @@ class ListBoxWindow(Gtk.Window):
 		userRow.add(userRowHbox)
 		userRowHbox.pack_start(Gtk.Label(""), True, True, 0)
 		self.userCombo = Gtk.ComboBoxText()
+		self.load_users()
 		self.userCombo.connect('changed', self.onUserChange)
 		userRowHbox.pack_start(self.userCombo, True, True, 0)
 		self.newUserButton = Gtk.Button.new_with_label("New User")
@@ -173,6 +175,14 @@ class ListBoxWindow(Gtk.Window):
 		self.currentPass = None
 		# listbox_2.show_all()
 	
+	def load_users(self):
+		self.clearCombo()
+		for file in os.listdir(files_location):
+			match = re.match(r"\.(.+)_hash", file)
+			if match != None:
+				self.userCombo.append(match.group(1), match.group(1))
+
+
 
 	def promptError(self, Title, Desc):
 		dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR,
