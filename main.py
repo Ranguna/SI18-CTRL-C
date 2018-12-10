@@ -3,6 +3,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
 import os.path
+import time
 import re
 import aes
 import rsa
@@ -87,8 +88,11 @@ class TreeView(Gtk.TreeView):
 									text=0)
 		self.append_column(col_a)
 	
-	def appendData(self, info):
-		self.model.append([info])
+	def appendData(self, data):
+		self.model.append([data])
+	
+	def clearData(self):
+		self.model.clear()
 
 
 class ListBoxWindow(Gtk.Window):
@@ -179,6 +183,30 @@ class ListBoxWindow(Gtk.Window):
 		self.encPrivKey = None
 		# listbox_2.show_all()
 	
+	def checkUserIntegrity(self,user):
+		# self.userCombo.remove(self.userCombo.get_active())
+		if (not (
+				os.path.isfile(files_location + file_prefix + user + clip_sufix) and
+				os.path.isfile(files_location + file_prefix + user + hash_sufix) and
+				os.path.isfile(files_location + file_prefix + user + keypair_sufix)
+			)):
+				# remover user do combo
+				# try:
+				# 	os.remove(files_location + file_prefix + user + clip_sufix)
+				# except Exception:
+				# 	pass
+				# try:
+				# 	os.remove(files_location + file_prefix + user + keypair_sufix)
+				# except Exception:
+				# 	pass
+				# try:
+				# 	os.remove(files_location + file_prefix + user + hash_sufix)
+				# except Exception:
+				# 	pass
+				return False
+
+		return True
+
 	def load_users(self):
 		self.clearCombo()
 		users = {}
@@ -194,13 +222,14 @@ class ListBoxWindow(Gtk.Window):
 			if len(users[user]) == 3:
 				self.userCombo.append(user, user)
 			else:
-				print "Invalid user files %s"%user
+				self.checkUserIntegrity(user)
+				self.userCombo.remove(self.userCombo.get_active())
 
 
 
 	def promptError(self, Title, Desc):
 		dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR,
-			Gtk.ButtonsType.CANCEL, Title)
+			Gtk.ButtonsType.OK, Title)
 		dialog.format_secondary_text(
 			Desc)
 		dialog.run()
@@ -219,30 +248,90 @@ class ListBoxWindow(Gtk.Window):
 			self.ignoreUserChange = False
 			return
 
-		dialog = LoginDialog(self, widget.get_active_text())
-		response = dialog.run()
-
 		loginOk = False
-		if(response == Gtk.ResponseType.OK): # fez login
-			print(dialog.passEntry.get_text()) # pass
-			#!!! FAZER - Login aqui
-			# ver se a pass corresponde ao ficheiro
-			# carregar as entradas
-			# se a pass nao corresponder, mostrar isto:
-			# self.promptError("Password errada", "A password introduzida está errada.")
+		response = Gtk.ResponseType.OK
+		dialog  = None
+		passwd = None
+		print(widget.get_active_text())
+		while not loginOk and response == Gtk.ResponseType.OK:
+			if not self.checkUserIntegrity(widget.get_active_text()):
+				self.ignoreUserChange = True
+				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+				self.userCombo.remove(self.userCombo.get_active())
+				break
+			
+			dialog = LoginDialog(self, widget.get_active_text())
+			response = dialog.run()
 
-		if(loginOk or response == Gtk.ResponseType.CANCEL):
-			if(loginOk):
-				self.loggedInUser = widget.get_active_text()
-				#!!! FAZER - carregar par de chaves
+			loginOk = False
+			if(response == Gtk.ResponseType.OK): # fez login
+				print(dialog.passEntry.get_text()) # pass
+				passwd = dialog.passEntry.get_text()
+				# ver se tem todos os ficheiros
+				if(not self.checkUserIntegrity(widget.get_active_text())):
+					self.ignoreUserChange = True
+					response == Gtk.ResponseType.OK
+					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+					self.userCombo.remove(self.userCombo.get_active())
+					dialog.destroy()
+					break
+				
+				clip_file = files_location + file_prefix + widget.get_active_text() + clip_sufix
+		
+				# ver se a pass corresponde ao ficheiro
+				with open(clip_file, "r") as f:
+					if not hashez.verify(passwd, f.readline().replace("\n","")):
+						self.promptError("Password incorreta.", "A password introduzida está incorreta.")
+					else:
+						loginOk = True
+
 			dialog.destroy()
+
+		if loginOk:
+			self.loggedInUser = widget.get_active_text()
+
+			keypair_file = files_location + file_prefix + widget.get_active_text() + keypair_sufix
+			clip_file = files_location + file_prefix + widget.get_active_text() + clip_sufix
+			
+			## carregar par de chaves
+			try:
+				(self.pubKey, self.encPrivKey) = rsa.load_enckeypair(keypair_file, passwd)
+			except Exception as err:
+				print("Error while loading keys: " +err.message)
+				# clear all user vars
+				(self.pubKey, self.encPrivKey) = None, None
+				self.loggedInUser = None
+				self.ignoreUserChange = True
+				self.userCombo.set_active(-1)
+
+			## carregar as entradas
+			# apagar entradas antigas
+			self.view.clearData()
+			# carregar novas
+			with open(clip_file, "r") as f:
+				f.readline()
+				line = f.readline() #password line
+				line = f.readline() # first history line
+				while line != '':
+					try:
+						# time:criptogram:encRandomBytes
+						self.view.appendData(time.strftime("%a %-d %b %y - %X",time.localtime(line.split(":")[0])))
+					except Exception as err:
+						self.view.appendData("-- corrupted --")
+					line = f.readline()
+
+			print("OK")
+		else:
+			print "not logged"
+			self.ignoreUserChange = True
+			self.userCombo.set_active(-1)
 
 	def newUser(self, widget):
 		newUserOk = False
-		response = None
+		response = Gtk.ResponseType.OK
 		name = None
 		passwd = None
-		while not newUserOk and response != Gtk.ResponseType.CANCEL:
+		while not newUserOk and response == Gtk.ResponseType.OK:
 			dialog = CreateAccountDialog(self)
 			response = dialog.run()
 
@@ -274,7 +363,7 @@ class ListBoxWindow(Gtk.Window):
 			
 			# gerar a guardar par de chaves rsa
 			rsa.gen_keypair(keypair_file, passwd) #!sht: pode falhar caso nao consiga gravar o ficheiro
-			(self.pubKey, self.encPrivKey) = rsa.load_enckeypair(keypair_file,passwd)
+			(self.pubKey, self.encPrivKey) = rsa.load_enckeypair(keypair_file, passwd)
 			with open(clip_file, "w") as f:
 				# cria ficheiro do clip e mete lá a pass com uma pitadinha de sal
 				f.write(hashez.salted(passwd)+"\n")
