@@ -206,6 +206,14 @@ class ListBoxWindow(Gtk.Window):
 		dialog.run()
 		dialog.destroy()
 
+	def promptInfo(self, Title, Desc):
+		dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.INFO,
+			Gtk.ButtonsType.OK, Title)
+		dialog.format_secondary_text(
+			Desc)
+		dialog.run()
+		dialog.destroy()
+
 	def onUserChange(self, widget):
 		if self.ignoreUserChange:
 			self.ignoreUserChange = False
