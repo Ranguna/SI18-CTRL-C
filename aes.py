@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import hashez
 from Crypto import Random
 from Crypto.Cipher import AES
 
@@ -10,17 +11,27 @@ class AESCipher(object):
 		self.key = hashlib.sha256(key.encode()).digest()
 
 	def encrypt(self, raw):
-		raw = self._pad(raw)
 		print("Raw: " + raw)
+		hash = hashez.insipid(raw).encode("hex")
+		padded = self._pad(raw +":"+ hash)
 		iv = Random.new().read(AES.block_size)
-		cipher = AES.new(self.key, AES.MODE_CBC, iv)
-		return base64.b64encode(iv + cipher.encrypt(raw))
+		cipher = AES.new(self.key, AES.MODE_CBC, iv)		
+		return base64.b64encode(iv + cipher.encrypt(padded))
 
 	def decrypt(self, enc):
 		enc = base64.b64decode(enc)
 		iv = enc[:AES.block_size]
 		cipher = AES.new(self.key, AES.MODE_CBC, iv)
-		return self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+		dechash = self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
+		try:
+			dec,hash = dechash.split(":")
+		except Exception:
+			return Exception("PlainText Missmatch")
+
+		if hashez.insipid(dec).encode("hex") == hash:
+			return dec
+		else:
+			return Exception("PlainText Missmatch")
 
 	def _pad(self, s):
 		return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
@@ -44,3 +55,4 @@ if __name__ == '__main__':
 	decT = Cipher.decrypt(encT)
 	print(decT)
 	print(len(texto))
+	print( AESCipher("123").decrypt(AESCipher("123").encrypt("")) == AESCipher("123").decrypt(AESCipher("123").encrypt("") ))
