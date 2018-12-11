@@ -12,7 +12,7 @@ class AESCipher(object):
 
 	def encrypt(self, raw):
 		print("Raw:" + raw)
-		hash = hashez.insipid(raw).encode("hex")
+		hash = hashez.insipid(raw).encode("hex").strip()
 		padded = self._pad(raw +":"+ hash)
 		iv = Random.new().read(AES.block_size)
 		cipher = AES.new(self.key, AES.MODE_CBC, iv)		
@@ -23,15 +23,16 @@ class AESCipher(object):
 		iv = enc[:AES.block_size]
 		cipher = AES.new(self.key, AES.MODE_CBC, iv)
 		dechash = self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-		try:
+
+		if len(dechash.split(":")) == 2 :
 			dec,hash = dechash.split(":")
-		except Exception:
-			return Exception("PlainText Missmatch")
+		else:
+			raise Exception("PlainText Missmatch")
 
 		if hashez.insipid(dec).encode("hex") == hash:
 			return dec
 		else:
-			return Exception("PlainText Missmatch")
+			raise Exception("PlainText Missmatch")
 
 	def _pad(self, s):
 		return s + (self.bs - len(s) % self.bs) * chr(self.bs - len(s) % self.bs)
@@ -55,4 +56,4 @@ if __name__ == '__main__':
 	decT = Cipher.decrypt(encT)
 	print(decT)
 	print(len(texto))
-	print( AESCipher("123").decrypt(AESCipher("123").encrypt("")) == AESCipher("123").decrypt(AESCipher("123").encrypt("") ))
+	print( AESCipher("123").decrypt(AESCipher("123").encrypt("asd")) == AESCipher("123").decrypt(AESCipher("123").encrypt("asd") ))
