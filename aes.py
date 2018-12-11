@@ -11,7 +11,7 @@ class AESCipher(object):
 		self.key = hashlib.sha256(key.encode()).digest()
 
 	def encrypt(self, raw):
-		print("Raw: " + raw)
+		print("Raw:" + raw)
 		hash = hashez.insipid(raw).encode("hex")
 		padded = self._pad(raw +":"+ hash)
 		iv = Random.new().read(AES.block_size)
