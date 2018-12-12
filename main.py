@@ -206,34 +206,34 @@ class ListBoxWindow(Gtk.Window):
 		self.keyPair = None
 		# listbox_2.show_all()
 	
-		def verifyEntry (self,widget):
-			if self.userCombo.get_active() == -1: # provavelmente nunca vai acontecer
-				return 
-				
-			dialog = SearchWindow(self)
-			response = dialog.run()
+	def verifyEntry(self,widget):
+		if self.userCombo.get_active() == -1: # provavelmente nunca vai acontecer
+			return 	
 
-			if(response == Gtk.ResponseType.OK):
-				if not self.checkUserIntegrity(self.userCombo.get_active_text()):
-					self.ignoreUserChange = True
-					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-					self.userCombo.remove(self.userCombo.get_active())
-					self.loggedInUser = None
-					self.keyPair = None
-					return
-
-				procurar = dialog.stringEntry.get_text()
-				hash_file = files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix
-				info = "Entrada Não Existe"
-				with open("fileE.txt","r") as file:
-					for line in file.readlines():
-						line = line.strip()
-						if hashez.verify(procurar, line.split(":")[0]):
-							info = "Entrada Existente"
-							
-				self.promptInfo("Verificação", info)
-			
-			dialog.destroy()
+		dialog = SearchWindow(self)
+		response = dialog.run()
+		
+		if(response == Gtk.ResponseType.OK):
+			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
+				self.ignoreUserChange = True
+				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+				self.userCombo.remove(self.userCombo.get_active())
+				self.loggedInUser = None
+				self.keyPair = None
+				return
+		
+			procurar = dialog.stringEntry.get_text()
+			hash_file = files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix
+			info = "Entrada Não Existe"
+			with open(hash_file,"r") as file:
+				for line in file.readlines():
+					line = line.strip()
+					if hashez.verify(procurar, line):
+		
+						info = "Entrada Existente"							
+			self.promptInfo("Verificação", info)			
+		
+		dialog.destroy()
 	
 	def checkUserIntegrity(self,user):
 		# self.userCombo.remove(self.userCombo.get_active())
