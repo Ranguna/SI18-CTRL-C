@@ -1,9 +1,10 @@
 # encoding: utf-8
+from pprint import pprint
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
-import os.path
-import time
+from os import path, urandom, listdir
+import times
 import re
 import aes
 import rsa
@@ -179,16 +180,15 @@ class ListBoxWindow(Gtk.Window):
 		self.ignoreUserChange = False
 
 		self.loggedInUser = None
-		self.pubKey = None
-		self.encPrivKey = None
+		self.keyPair = None
 		# listbox_2.show_all()
 	
 	def checkUserIntegrity(self,user):
 		# self.userCombo.remove(self.userCombo.get_active())
 		if (not (
-				os.path.isfile(files_location + file_prefix + user + clip_sufix) and
-				os.path.isfile(files_location + file_prefix + user + hash_sufix) and
-				os.path.isfile(files_location + file_prefix + user + keypair_sufix)
+				path.isfile(files_location + file_prefix + user + clip_sufix) and
+				path.isfile(files_location + file_prefix + user + hash_sufix) and
+				path.isfile(files_location + file_prefix + user + keypair_sufix)
 			)):
 				# remover user do combo
 				# try:
@@ -210,7 +210,7 @@ class ListBoxWindow(Gtk.Window):
 	def load_users(self):
 		self.clearCombo()
 		users = {}
-		for file in os.listdir(files_location):
+		for file in listdir(files_location):
 			match = re.match(r"\.(.+)(%s|%s|%s)"%(clip_sufix,hash_sufix, keypair_sufix), file)
 			if match != None:
 				try:
@@ -221,11 +221,6 @@ class ListBoxWindow(Gtk.Window):
 		for user in users:
 			if len(users[user]) == 3:
 				self.userCombo.append(user, user)
-			else:
-				self.checkUserIntegrity(user)
-				self.userCombo.remove(self.userCombo.get_active())
-
-
 
 	def promptError(self, Title, Desc):
 		dialog = Gtk.MessageDialog(self, 0, Gtk.MessageType.ERROR,
@@ -257,6 +252,8 @@ class ListBoxWindow(Gtk.Window):
 			if not self.checkUserIntegrity(widget.get_active_text()):
 				self.ignoreUserChange = True
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+				self.loggedInUser = None
+				self.keyPair = None
 				self.userCombo.remove(self.userCombo.get_active())
 				break
 			
@@ -273,6 +270,8 @@ class ListBoxWindow(Gtk.Window):
 					response == Gtk.ResponseType.OK
 					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
 					self.userCombo.remove(self.userCombo.get_active())
+					self.loggedInUser = None
+					self.keyPair = None
 					dialog.destroy()
 					break
 				
@@ -295,11 +294,11 @@ class ListBoxWindow(Gtk.Window):
 			
 			## carregar par de chaves
 			try:
-				(self.pubKey, self.encPrivKey) = rsa.load_enckeypair(keypair_file, passwd)
+				self.keyPair = rsa.KeyPair(keypair_file, passwd)
 			except Exception as err:
 				print("Error while loading keys: " +err.message)
 				# clear all user vars
-				(self.pubKey, self.encPrivKey) = None, None
+				self.keyPair = None
 				self.loggedInUser = None
 				self.ignoreUserChange = True
 				self.userCombo.set_active(-1)
@@ -309,20 +308,19 @@ class ListBoxWindow(Gtk.Window):
 			self.view.clearData()
 			# carregar novas
 			with open(clip_file, "r") as f:
-				f.readline()
-				line = f.readline() #password line
+				f.readline() #password line
 				line = f.readline() # first history line
 				while line != '':
 					try:
-						# time:criptogram:encRandomBytes
-						self.view.appendData(time.strftime("%a %-d %b %y - %X",time.localtime(line.split(":")[0])))
+						# time(epoch):criptogram:encRandomBytes
+						self.view.appendData(times.strftime(float(line.split(":")[0])))
 					except Exception as err:
 						self.view.appendData("-- corrupted --")
 					line = f.readline()
 
 			print("OK")
 		else:
-			print "not logged"
+			print("not logged")
 			self.ignoreUserChange = True
 			self.userCombo.set_active(-1)
 
@@ -343,7 +341,7 @@ class ListBoxWindow(Gtk.Window):
 				clip_file = files_location + file_prefix + dialog.nameEntry.get_text() + clip_sufix
 				
 				# ver se o ficheiro existe
-				if not os.path.isfile(clip_file):
+				if not path.isfile(clip_file):
 					if len(passwd) < 12: # pass pequena
 						self.promptError("Password pequena.", "A password é demasiado pequena, >11.")
 					elif len(name) == 0: # user em branco
@@ -362,8 +360,7 @@ class ListBoxWindow(Gtk.Window):
 			keypair_file = files_location + file_prefix + name + keypair_sufix
 			
 			# gerar a guardar par de chaves rsa
-			rsa.gen_keypair(keypair_file, passwd) #!sht: pode falhar caso nao consiga gravar o ficheiro
-			(self.pubKey, self.encPrivKey) = rsa.load_enckeypair(keypair_file, passwd)
+			self.keyPair = rsa.KeyPair(keypair_file, passwd, True)
 			with open(clip_file, "w") as f:
 				# cria ficheiro do clip e mete lá a pass com uma pitadinha de sal
 				f.write(hashez.salted(passwd)+"\n")
@@ -389,7 +386,7 @@ class ListBoxWindow(Gtk.Window):
 		a,b =treeview.get_selection().get_selected_rows()
 		for _, button in self.selectionButtons.items():
 			button.set_sensitive(True)
-		print("a ", a[b[0]][0])
+		# print("a ", a[b[0]][0])
 
 	def onClickClipSelection(self, widget, row, col):
 		# não fazer nada se nenhum utilizador estiver ligado
@@ -405,48 +402,45 @@ class ListBoxWindow(Gtk.Window):
 			return 
 
 		if not self.ignore_clip:
-			clip_data = self.clipboard.wait_for_text()
 			# send clip data to list view
-			self.view.appendData(clip_data)
+			# self.view.appendData(clip_data)
 
-			#!!! FAZER - Meter entradas no ficheiro aqui
-			#  A nova entrada fica no fim do ficheiro com o nome self.userCombo.get_active_text(), ou algo do genero
-			# mete o hash no ficheiro dos hashes tambem
-			# a nove entrada do clipboard está na variavel clip_data
+			# do msg encryption scheme
+			msg = self.clipboard.wait_for_text()
+			randomBytes = urandom(min(self.keyPair.publicKey.size()/8, len(msg))).encode("hex")
+			
+			criptogram = aes.AESCipher(randomBytes).encrypt(msg)
+			encRandomBytes = self.keyPair.encrypt(randomBytes)
 
-			# replace clipboard with encrypted text
-			self.clipboard.set_text(clip_data, -1)
-			self.ignore_clip = True
+			encMsg = criptogram + ":"+ encRandomBytes
+
+			entryTime = times.epochtime()
+			msgEntry = str(entryTime) + ":"+ encMsg
+
+			# save to end of file
+			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
+				self.ignoreUserChange = True
+				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+				self.userCombo.remove(self.userCombo.get_active())
+				self.loggedInUser = None
+				self.keyPair = None
+				return
+			
+			# clip history
+			with open(files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix, "a") as f:
+				f.write(msgEntry+"\n")
+
+			# hash log
+			with open(files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix, "a") as f:
+				f.write(hashez.salted(msg)+"\n")
+
+			# add entry to view
+			self.view.appendData(times.strftime(entryTime))
 		else:
 			self.ignore_clip = False
 
 	def clearCombo(self):
 		self.userCombo.get_model().clear()
-	
-
-class EntriesFileHandler():
-	def __init__(self, filename):
-		self.inited = False
-		try:
-			self.clipEntries = open("."+filename+"_clip", "a")
-			self.hashEntries = open("."+filename+"_hash", "a")
-			self.inited = True
-		except IOError:
-			print("File not found")
-
-	def newEntry(self, time, data):
-		if(not self.inited):
-			return
-
-		self.clipEntries.write()
-
-	
-	def closeFiles(self):
-		if(not self.inited):
-			return
-
-		self.clipEntries.close()
-		self.hashEntries.close()
 	 
 
 win = ListBoxWindow()
