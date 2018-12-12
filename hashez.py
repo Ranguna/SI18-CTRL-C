@@ -8,11 +8,7 @@ def salted(text, salt=10, rounds = 10000):
 	return hashlib.pbkdf2_hmac("sha256", text.encode("hex"), salt, rounds).encode("hex")+":"+salt
 
 def insipid(text):
-<<<<<<< HEAD
 	return hashlib.sha256(text).digest().encode("hex")
-=======
-	return hashlib.sha256(text).digest()
->>>>>>> 5681c573c984b80b2dc1b5b4465777271e3ebf19
 
 def verify(original_text, hash, rounds = 10000):
 	[_, salt] = hash.split(":")[0:3]
