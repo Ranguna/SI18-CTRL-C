@@ -15,7 +15,7 @@ class AESCipher(object):
 		hash = hashez.insipid(raw).encode("hex").strip()
 		padded = self._pad(raw +":"+ hash)
 		iv = Random.new().read(AES.block_size)
-		cipher = AES.new(self.key, AES.MODE_CBC, iv)		
+		cipher = AES.new(self.key, AES.MODE_CBC, iv)
 		return base64.b64encode(iv + cipher.encrypt(padded))
 
 	def decrypt(self, enc):
@@ -29,7 +29,7 @@ class AESCipher(object):
 		else:
 			raise Exception("PlainText Missmatch")
 
-		if hashez.insipid(dec).encode("hex") == hash:
+		if hashez.insipid(dec) == hash:
 			return dec
 		else:
 			raise Exception("PlainText Missmatch")
