@@ -1,11 +1,11 @@
 # encoding: utf-8
-from pprint import pprint
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
 from os import path, urandom, listdir
-import times
+import fcntl
 import re
+import times
 import aes
 import rsa
 import hashez
@@ -153,7 +153,6 @@ class ListBoxWindow(Gtk.Window):
 
 		self.selectionButtons = {
 			"copiar": Gtk.Button.new_with_label("Copiar"), #!!! FAZER - a copia
-			"verificar": Gtk.Button.new_with_label("Verificar"), #!!! FAZER - Verifcar o hash
 			"apagar": Gtk.Button.new_with_label("Apagar") #!!! FAZER - apagar entrada  do coiso
 		}
 		selectionButton = Gtk.ListBoxRow()
@@ -164,7 +163,8 @@ class ListBoxWindow(Gtk.Window):
 			button.set_sensitive(False)
 		listbox.add(selectionButton)
 
-		self.selectionButtons["verificar"].connect("clicked",self.verifyEntry)
+		
+		self.selectionButtons["apagar"].connect("clicked",self.onDeletePress)
 
 
 		# file button row
@@ -173,8 +173,10 @@ class ListBoxWindow(Gtk.Window):
 		box_outer.pack_start(listbox, True, True, 0)
 
 		self.fileButtons = {
-			"verAssi": Gtk.Button.new_with_label("Verificar Ficheiro") # Verificar ficheiro
+			"verAssi": Gtk.Button.new_with_label("Verificar Entrada")
 		}
+		self.fileButtons["verAssi"].set_sensitive(False)
+		self.fileButtons["verAssi"].connect("clicked",self.verifyEntry)
 		fileButton = Gtk.ListBoxRow()
 		fileButtonHbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
 		fileButton.add(fileButtonHbox)
@@ -206,9 +208,60 @@ class ListBoxWindow(Gtk.Window):
 		self.keyPair = None
 		# listbox_2.show_all()
 	
+	def onDeletePress(self, widget):
+		(model, t_iter) = self.view.get_selection().get_selected()
+		(model, path) = self.view.get_selection().get_selected_rows()
+		print(model[path[0]][0])
+		self.removeEntry(model[path[0]][0], t_iter)
+
+	def removeEntry(self, entry, iter):
+		print("entry ", entry)
+		entry = times.strf2epoch(entry)
+		clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
+		with open(clip_file, "rw+") as f:
+			fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+			try:
+				index = -1
+				lines = f.readlines()
+				for line in range(len(lines)):
+					print(lines[line].split(":")[0], entry)
+					if lines[line].split(":")[0] == str(entry):
+						print("Found it")
+						index = line
+						break
+
+				if index != -1:
+					f.seek(0)
+					f.write("".join(lines[0:index] + lines[index+1:len(lines)]))
+					# f.write("".join(lines[index+1:len(lines)]))
+					# remove from hashes
+					hash_file = files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix
+					with open(hash_file, "rw+") as hf:
+						fcntl.flock(hf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+						try:
+							hlines = hf.readline()
+							# hf.seek(0)
+							hf.write("".join(hlines[0:index] + hlines[index+1:len(hlines)]))
+							# hf.write("".join(hlines[index+1:len(hlines)]))
+							hf.truncate()
+							fcntl.flock(hf, fcntl.LOCK_UN)
+						except Exception as err:
+							fcntl.flock(hf, fcntl.LOCK_UN)
+							raise err
+					self.view.model.remove(iter)
+
+				f.truncate()
+				fcntl.flock(f, fcntl.LOCK_UN)
+			except Exception as err:
+				fcntl.flock(f, fcntl.LOCK_UN)
+				raise err
+
+		
+		# remove from treeview
+
 	def verifyEntry(self,widget):
 		if self.userCombo.get_active() == -1: # provavelmente nunca vai acontecer
-			return 	
+			return
 
 		dialog = SearchWindow(self)
 		response = dialog.run()
@@ -220,18 +273,25 @@ class ListBoxWindow(Gtk.Window):
 				self.userCombo.remove(self.userCombo.get_active())
 				self.loggedInUser = None
 				self.keyPair = None
+				self.fileButtons["verAssi"].set_sensitive(False)
 				return
 		
 			procurar = dialog.stringEntry.get_text()
 			hash_file = files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix
 			info = "Entrada Não Existe"
 			with open(hash_file,"r") as file:
-				for line in file.readlines():
-					line = line.strip()
-					if hashez.verify(procurar, line):
-		
-						info = "Entrada Existente"							
-			self.promptInfo("Verificação", info)			
+				fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+				try:
+					for line in file.readlines():
+						line = line.strip()
+						if hashez.verify(procurar, line):
+							info = "Entrada Existente"
+					fcntl.flock(file, fcntl.LOCK_UN)
+				except Exception as err:
+					fcntl.flock(file, fcntl.LOCK_UN)
+					raise err
+
+			self.promptInfo("Verificação", info)	
 		
 		dialog.destroy()
 	
@@ -306,6 +366,7 @@ class ListBoxWindow(Gtk.Window):
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
 				self.loggedInUser = None
 				self.keyPair = None
+				self.fileButtons["verAssi"].set_sensitive(False)
 				self.userCombo.remove(self.userCombo.get_active())
 				break
 			
@@ -331,10 +392,16 @@ class ListBoxWindow(Gtk.Window):
 		
 				# ver se a pass corresponde ao ficheiro
 				with open(clip_file, "r") as f:
-					if not hashez.verify(passwd, f.readline().replace("\n","")):
-						self.promptError("Password incorreta.", "A password introduzida está incorreta.")
-					else:
-						loginOk = True
+					fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+					try:
+						if not hashez.verify(passwd, f.readline().replace("\n","")):
+							self.promptError("Password incorreta.", "A password introduzida está incorreta.")
+						else:
+							loginOk = True
+						fcntl.flock(f, fcntl.LOCK_UN)
+					except Exception as err:
+						fcntl.flock(f, fcntl.LOCK_UN)
+						raise err
 
 			dialog.destroy()
 
@@ -360,21 +427,31 @@ class ListBoxWindow(Gtk.Window):
 			self.view.clearData()
 			# carregar novas
 			with open(clip_file, "r") as f:
-				f.readline() #password line
-				line = f.readline() # first history line
-				while line != '':
-					try:
-						# time(epoch):criptogram:encRandomBytes
-						self.view.appendData(times.strftime(float(line.split(":")[0])))
-					except Exception as err:
-						self.view.appendData("-- corrupted --")
-					line = f.readline()
+				fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+				try:
+					f.readline() #password line
+					line = f.readline() # first history line
+					while line != '':
+						try:
+							# time(epoch):criptogram:encRandomBytes
+							self.view.appendData(times.strftime(float(line.split(":")[0])))
+						except Exception as err:
+							self.view.appendData("-- corrupted --")
+						line = f.readline()
+					fcntl.flock(f, fcntl.LOCK_UN)
+				except Exception as err:
+					fcntl.flock(f, fcntl.LOCK_UN)
+					raise err
+					
+				
 
+			self.fileButtons["verAssi"].set_sensitive(True)
 			print("OK")
 		else:
 			print("not logged")
 			self.ignoreUserChange = True
 			self.userCombo.set_active(-1)
+			self.fileButtons["verAssi"].set_sensitive(False)
 
 	def newUser(self, widget):
 		newUserOk = False
@@ -427,6 +504,7 @@ class ListBoxWindow(Gtk.Window):
 			self.userCombo.append(name,name)
 			# meter como selecionado
 			self.userCombo.set_active_id(name)
+			self.fileButtons["verAssi"].set_sensitive(True)
 
 	def onSelection(self, treeview):
 		# não fazer nada se nenhum utilizador estiver ligado
@@ -467,6 +545,7 @@ class ListBoxWindow(Gtk.Window):
 			encMsg = criptogram + ":"+ encRandomBytes
 
 			entryTime = times.epochtime()
+			print("entry time",entryTime)
 			msgEntry = str(entryTime) + ":"+ encMsg
 
 			# save to end of file
@@ -476,15 +555,26 @@ class ListBoxWindow(Gtk.Window):
 				self.userCombo.remove(self.userCombo.get_active())
 				self.loggedInUser = None
 				self.keyPair = None
+				self.fileButtons["verAssi"].set_sensitive(False)
 				return
 			
 			# clip history
 			with open(files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix, "a") as f:
-				f.write(msgEntry+"\n")
+				try:
+					fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+					f.write(msgEntry+"\n")
+				except Exception as err:
+					fcntl.flock(f, fcntl.LOCK_UN)
+					raise err
 
 			# hash log
 			with open(files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix, "a") as f:
-				f.write(hashez.salted(msg)+"\n")
+				try:
+					fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+					f.write(hashez.salted(msg)+"\n")
+				except Exception as err:
+					fcntl.flock(f, fcntl.LOCK_UN)
+					raise err
 
 			# add entry to view
 			self.view.appendData(times.strftime(entryTime))
