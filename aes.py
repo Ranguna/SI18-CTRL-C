@@ -11,8 +11,7 @@ class AESCipher(object):
 		self.key = hashlib.sha256(key.encode()).digest()
 
 	def encrypt(self, raw):
-		print("Raw:" + raw)
-		hash = hashez.insipid(raw).encode("hex").strip()
+		hash = hashez.insipid(raw)
 		padded = self._pad(raw +":"+ hash)
 		iv = Random.new().read(AES.block_size)
 		cipher = AES.new(self.key, AES.MODE_CBC, iv)
@@ -23,12 +22,12 @@ class AESCipher(object):
 		iv = enc[:AES.block_size]
 		cipher = AES.new(self.key, AES.MODE_CBC, iv)
 		dechash = self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-
+		
 		if len(dechash.split(":")) == 2 :
 			dec,hash = dechash.split(":")
 		else:
 			raise Exception("PlainText Missmatch")
-
+			
 		if hashez.insipid(dec) == hash:
 			return dec
 		else:
