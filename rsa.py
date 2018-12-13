@@ -59,7 +59,7 @@ class KeyPair:
 			self.generate(keyfile, passwd)
 		else:
 			raise Exception("Invalid arguments for keypair")
-
+			
 	def generate(self, keyfile, passwd):
 		gen_keypair(keyfile, passwd) #!sht: pode falhar caso nao consiga gravar o ficheiro
 		self.load_file(keyfile, passwd)
@@ -72,7 +72,7 @@ class KeyPair:
 			raise Exception("Empty keypair.")
 
 		data = data + ":" + hashez.insipid(data).encode("hex")
-
+		print(self.publicKey.size(), len(data	))
 		return base64.b64encode(self.publicKey.encrypt(data, 0)[0])
 
 	def decrypt(self, data, passwd):

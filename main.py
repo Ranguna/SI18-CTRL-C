@@ -163,8 +163,14 @@ class ListBoxWindow(Gtk.Window):
 			button.set_sensitive(False)
 		listbox.add(selectionButton)
 
+<<<<<<< HEAD
 		
 		self.selectionButtons["apagar"].connect("clicked",self.onDeletePress)
+=======
+
+		self.selectionButtons["copiar"].connect("clicked", self.copyEntryToClipboard)
+		self.selectionButtons["verificar"].connect("clicked",self.verifyEntry)
+>>>>>>> ec1f164e93576a59a2d7e4707b2818214e57afd1
 
 
 		# file button row
@@ -207,6 +213,7 @@ class ListBoxWindow(Gtk.Window):
 		self.loggedInUser = None
 		self.keyPair = None
 		# listbox_2.show_all()
+<<<<<<< HEAD
 	
 	def onDeletePress(self, widget):
 		(model, t_iter) = self.view.get_selection().get_selected()
@@ -258,6 +265,68 @@ class ListBoxWindow(Gtk.Window):
 
 		
 		# remove from treeview
+=======
+
+
+	def copyEntryToClipboard(self, widget):
+		loginOk = False
+		response = Gtk.ResponseType.OK
+		dialog  = None
+		passwd = None
+		while not loginOk and response == Gtk.ResponseType.OK:
+			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
+				self.ignoreUserChange = True
+				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+				self.userCombo.remove(self.userCombo.get_active())
+				break
+			
+			dialog = LoginDialog(self, self.userCombo.get_active_text())
+			response = dialog.run()
+
+			loginOk = False
+			if(response == Gtk.ResponseType.OK): # fez login
+				print(dialog.passEntry.get_text()) # pass
+				passwd = dialog.passEntry.get_text()
+				# ver se tem todos os ficheiros
+				if(not self.checkUserIntegrity(self.userCombo.get_active_text())):
+					self.ignoreUserChange = True
+					response == Gtk.ResponseType.OK
+					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
+					self.userCombo.remove(self.userCombo.get_active())
+					dialog.destroy()
+					break
+				
+				clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
+		
+				# ver se a pass corresponde ao ficheiro
+				with open(clip_file, "r") as f:
+					if not hashez.verify(passwd, f.readline().replace("\n","")):
+						self.promptError("Password incorreta.", "A password introduzida está incorreta.")
+					else:
+						loginOk = True
+
+			dialog.destroy()
+
+		if loginOk:
+			(model, path) = self.view.get_selection().get_selected_rows()
+			entry = times.strf2epoch(model[path[0]][0])
+
+			clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
+			encMessage = ''
+			encRandomBytes = ''
+			with open(clip_file, "rw+") as f:
+				lines = f.readlines()
+				for line in range(len(lines)):
+					if lines[line].split(":")[0] == str(entry):
+						encMessage = lines[line].split(":")[1]
+						encRandomBytes = lines[line].split(":")[2].replace("\n","")
+				
+			randomBytes = self.keyPair.decrypt(encRandomBytes , passwd)
+			originalMessage = aes.AESCipher(randomBytes).decrypt(encMessage)
+			self.ignore_clip = True
+			self.clipboard.set_text(originalMessage, -1)
+			self.promptInfo("Copy", 'Copiado com sucesso!')
+>>>>>>> ec1f164e93576a59a2d7e4707b2818214e57afd1
 
 	def verifyEntry(self,widget):
 		if self.userCombo.get_active() == -1: # provavelmente nunca vai acontecer
