@@ -2,7 +2,7 @@
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
-from os import path, urandom, listdir
+from os import path, urandom, listdir, remove
 import fcntl
 import re
 import times
@@ -118,7 +118,7 @@ class TreeView(Gtk.TreeView):
 		self.model.clear()
 
 
-class ListBoxWindow(Gtk.Window):
+class Main(Gtk.Window):
 	def __init__(self):
 		Gtk.Window.__init__(self, title="CTRL+C: Um Gestor de Clipboard Porreirinho")
 		self.set_default_size(400, 200)
@@ -134,12 +134,18 @@ class ListBoxWindow(Gtk.Window):
 		userRow = Gtk.ListBoxRow()
 		userRowHbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
 		userRow.add(userRowHbox)
-		userRowHbox.pack_start(Gtk.Label(""), True, True, 0)
+		userRowHbox.set_homogeneous(True)
+		self.removeUserButton = Gtk.Button.new_with_label("Remover Utilizador")
+		self.removeUserButton.set_sensitive(False)
+		self.removeUserButton.connect('clicked', self.deleteCurrentUser)
+		userRowHbox.pack_start(self.removeUserButton, True, True, 0)
+		
 		self.userCombo = Gtk.ComboBoxText()
 		self.load_users()
 		self.userCombo.connect('changed', self.onUserChange)
 		userRowHbox.pack_start(self.userCombo, True, True, 0)
-		self.newUserButton = Gtk.Button.new_with_label("New User")
+		
+		self.newUserButton = Gtk.Button.new_with_label("Novo Utilizador")
 		self.newUserButton.connect("clicked", self.newUser)
 		userRowHbox.pack_start(self.newUserButton, True, True, 0)
 
@@ -165,7 +171,6 @@ class ListBoxWindow(Gtk.Window):
 
 		self.selectionButtons["apagar"].connect("clicked",self.onDeletePress)
 		self.selectionButtons["copiar"].connect("clicked", self.copyEntryToClipboard)
-		self.selectionButtons["verificar"].connect("clicked",self.verifyEntry)
 
 		# file button row
 		listbox = Gtk.ListBox()
@@ -207,14 +212,73 @@ class ListBoxWindow(Gtk.Window):
 		self.loggedInUser = None
 		self.keyPair = None
 		# listbox_2.show_all()
+
+	def toggleUserButtons(self, toggle):
+		self.removeUserButton.set_sensitive(toggle)
+		self.fileButtons["verAssi"].set_sensitive(toggle)
+
+	def toggleSelectionButtons(self, toggle):
+		for _, button in self.selectionButtons.items():
+			button.set_sensitive(toggle)
+
+	def removeCurrentUser(self):
+		self.loggedInUser = None
+		self.keyPair = None
+		self.ignoreUserChange = True
+		self.userCombo.remove(self.userCombo.get_active())
+		self.toggleUserButtons(False)
+		self.toggleSelectionButtons(False)
+		self.view.clearData()
+
+	def logoutCurrentUser(self):
+		self.loggedInUser = None
+		self.keyPair = None
+		self.ignoreUserChange = True
+		self.userCombo.set_active(-1)
+		self.toggleUserButtons(False)
+		self.toggleSelectionButtons(False)
+		self.view.clearData()
 	
+	def deleteCurrentUser(self, widget):
+		if self.userCombo.get_active() == -1:
+			return
+
+		user = self.userCombo.get_active_text()
+		print("removing ", user)
+		try:
+			remove(files_location + file_prefix + user + clip_sufix)
+			print "Removed"
+		except Exception as err:
+			print err
+			pass
+		try:
+			remove(files_location + file_prefix + user + keypair_sufix)
+			print "Removed"
+		except Exception as err:
+			print err
+			pass
+		try:
+			remove(files_location + file_prefix + user + hash_sufix)
+			print "Removed"
+		except Exception as err:
+			print err
+			pass
+		
+		self.removeCurrentUser()
+
 	def onDeletePress(self, widget):
+		if self.userCombo.get_active() == -1:
+			return
+
 		(model, t_iter) = self.view.get_selection().get_selected()
 		(model, path) = self.view.get_selection().get_selected_rows()
 		print(model[path[0]][0])
 		self.removeEntry(model[path[0]][0], t_iter)
 
 	def removeEntry(self, entry, iter):
+		if self.userCombo.get_active() == -1:
+			return
+
 		print("entry ", entry)
 		entry = times.strf2epoch(entry)
 		clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
@@ -261,15 +325,17 @@ class ListBoxWindow(Gtk.Window):
 
 
 	def copyEntryToClipboard(self, widget):
+		if self.userCombo.get_active() == -1: 
+			return
+
 		loginOk = False
 		response = Gtk.ResponseType.OK
 		dialog  = None
 		passwd = None
 		while not loginOk and response == Gtk.ResponseType.OK:
 			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
-				self.ignoreUserChange = True
+				self.logoutCurrentUser()
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-				self.userCombo.remove(self.userCombo.get_active())
 				break
 			
 			dialog = LoginDialog(self, self.userCombo.get_active_text())
@@ -281,10 +347,9 @@ class ListBoxWindow(Gtk.Window):
 				passwd = dialog.passEntry.get_text()
 				# ver se tem todos os ficheiros
 				if(not self.checkUserIntegrity(self.userCombo.get_active_text())):
-					self.ignoreUserChange = True
+					self.logoutCurrentUser()
 					response == Gtk.ResponseType.OK
 					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-					self.userCombo.remove(self.userCombo.get_active())
 					dialog.destroy()
 					break
 				
@@ -328,12 +393,8 @@ class ListBoxWindow(Gtk.Window):
 		
 		if(response == Gtk.ResponseType.OK):
 			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
-				self.ignoreUserChange = True
+				self.logoutCurrentUser()
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-				self.userCombo.remove(self.userCombo.get_active())
-				self.loggedInUser = None
-				self.keyPair = None
-				self.fileButtons["verAssi"].set_sensitive(False)
 				return
 		
 			procurar = dialog.stringEntry.get_text()
@@ -422,12 +483,8 @@ class ListBoxWindow(Gtk.Window):
 		print(widget.get_active_text())
 		while not loginOk and response == Gtk.ResponseType.OK:
 			if not self.checkUserIntegrity(widget.get_active_text()):
-				self.ignoreUserChange = True
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-				self.loggedInUser = None
-				self.keyPair = None
-				self.fileButtons["verAssi"].set_sensitive(False)
-				self.userCombo.remove(self.userCombo.get_active())
+				self.removeCurrentUser()
 				break
 			
 			dialog = LoginDialog(self, widget.get_active_text())
@@ -442,9 +499,7 @@ class ListBoxWindow(Gtk.Window):
 					self.ignoreUserChange = True
 					response == Gtk.ResponseType.OK
 					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-					self.userCombo.remove(self.userCombo.get_active())
-					self.loggedInUser = None
-					self.keyPair = None
+					self.removeCurrentUser()
 					dialog.destroy()
 					break
 				
@@ -461,6 +516,7 @@ class ListBoxWindow(Gtk.Window):
 						fcntl.flock(f, fcntl.LOCK_UN)
 					except Exception as err:
 						fcntl.flock(f, fcntl.LOCK_UN)
+						self.promptError("Erro deconhecido.", "Houve um erro a processar o utilizador.")
 						raise err
 
 			dialog.destroy()
@@ -476,11 +532,8 @@ class ListBoxWindow(Gtk.Window):
 				self.keyPair = rsa.KeyPair(keypair_file, passwd)
 			except Exception as err:
 				print("Error while loading keys: " +err.message)
-				# clear all user vars
-				self.keyPair = None
-				self.loggedInUser = None
-				self.ignoreUserChange = True
-				self.userCombo.set_active(-1)
+				self.logoutCurrentUser()
+				return
 
 			## carregar as entradas
 			# apagar entradas antigas
@@ -496,22 +549,20 @@ class ListBoxWindow(Gtk.Window):
 							# time(epoch):criptogram:encRandomBytes
 							self.view.appendData(times.strftime(float(line.split(":")[0])))
 						except Exception as err:
-							self.view.appendData("-- corrupted --")
+							self.view.appendData("-- corrompido --")
 						line = f.readline()
 					fcntl.flock(f, fcntl.LOCK_UN)
 				except Exception as err:
 					fcntl.flock(f, fcntl.LOCK_UN)
+					self.promptError("Erro.", "Houve um erro a carregar o histórico.")
 					raise err
-					
-				
 
-			self.fileButtons["verAssi"].set_sensitive(True)
+
+			self.toggleUserButtons(True)
 			print("OK")
 		else:
 			print("not logged")
-			self.ignoreUserChange = True
-			self.userCombo.set_active(-1)
-			self.fileButtons["verAssi"].set_sensitive(False)
+			self.logoutCurrentUser()
 
 	def newUser(self, widget):
 		newUserOk = False
@@ -535,10 +586,14 @@ class ListBoxWindow(Gtk.Window):
 						self.promptError("Password pequena.", "A password é demasiado pequena, >11.")
 					elif len(name) == 0: # user em branco
 						self.promptError("User vazio.", "O nome de utilizadore está em branco.")
+					elif len(name) > 8: # user em branco
+						self.promptError("Nome damsiado grande.", "O nome apenas pode conter até 8 caracteres, letras numeros e _.")
+					elif re.match(r"^[a-zA-Z]+\w*$", name) == None: # user em branco
+						self.promptError("Nome inválido.", "O nome apenas pode conter até 8 caracteres, letras numeros e _.")
 					else: # ok (y)
 						newUserOk = True
 				else: # se o ficheiro existe com o nome do user, user ja existe
-					self.promptError("Utilizador já existente.", "O utilizador inserido já se econtra registado.")
+					self.promptError("Utilizador já existente.", "O utilizador inserido já se encontra registado.")
 
 			dialog.destroy()
 
@@ -564,18 +619,15 @@ class ListBoxWindow(Gtk.Window):
 			self.userCombo.append(name,name)
 			# meter como selecionado
 			self.userCombo.set_active_id(name)
-			self.fileButtons["verAssi"].set_sensitive(True)
+			self.toggleUserButtons(True)
 
 	def onSelection(self, treeview):
 		# não fazer nada se nenhum utilizador estiver ligado
 		if self.userCombo.get_active() == -1:
-			for _, button in self.selectionButtons.items():
-				button.set_sensitive(True)
 			return
 
 		a,b =treeview.get_selection().get_selected_rows()
-		for _, button in self.selectionButtons.items():
-			button.set_sensitive(True)
+		self.toggleSelectionButtons(True)
 		# print("a ", a[b[0]][0])
 
 	def onClickClipSelection(self, widget, row, col):
@@ -610,12 +662,8 @@ class ListBoxWindow(Gtk.Window):
 
 			# save to end of file
 			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
-				self.ignoreUserChange = True
+				self.logoutCurrentUser()
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
-				self.userCombo.remove(self.userCombo.get_active())
-				self.loggedInUser = None
-				self.keyPair = None
-				self.fileButtons["verAssi"].set_sensitive(False)
 				return
 			
 			# clip history
@@ -645,7 +693,7 @@ class ListBoxWindow(Gtk.Window):
 		self.userCombo.get_model().clear()
 	 
 
-win = ListBoxWindow()
+win = Main()
 win.connect("destroy", Gtk.main_quit)
 win.show_all()
 Gtk.main()
