@@ -163,15 +163,9 @@ class ListBoxWindow(Gtk.Window):
 			button.set_sensitive(False)
 		listbox.add(selectionButton)
 
-<<<<<<< HEAD
-		
 		self.selectionButtons["apagar"].connect("clicked",self.onDeletePress)
-=======
-
 		self.selectionButtons["copiar"].connect("clicked", self.copyEntryToClipboard)
 		self.selectionButtons["verificar"].connect("clicked",self.verifyEntry)
->>>>>>> ec1f164e93576a59a2d7e4707b2818214e57afd1
-
 
 		# file button row
 		listbox = Gtk.ListBox()
@@ -213,7 +207,6 @@ class ListBoxWindow(Gtk.Window):
 		self.loggedInUser = None
 		self.keyPair = None
 		# listbox_2.show_all()
-<<<<<<< HEAD
 	
 	def onDeletePress(self, widget):
 		(model, t_iter) = self.view.get_selection().get_selected()
@@ -265,7 +258,6 @@ class ListBoxWindow(Gtk.Window):
 
 		
 		# remove from treeview
-=======
 
 
 	def copyEntryToClipboard(self, widget):
@@ -326,7 +318,6 @@ class ListBoxWindow(Gtk.Window):
 			self.ignore_clip = True
 			self.clipboard.set_text(originalMessage, -1)
 			self.promptInfo("Copy", 'Copiado com sucesso!')
->>>>>>> ec1f164e93576a59a2d7e4707b2818214e57afd1
 
 	def verifyEntry(self,widget):
 		if self.userCombo.get_active() == -1: # provavelmente nunca vai acontecer
