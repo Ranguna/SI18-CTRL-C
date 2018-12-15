@@ -23,7 +23,7 @@ class AESCipher(object):
 		iv = enc[:AES.block_size]
 		cipher = AES.new(self.key, AES.MODE_CBC, iv)
 		dechash = self._unpad(cipher.decrypt(enc[AES.block_size:])).decode('utf-8')
-		print(dechash, len(dechash.split(":")))
+		
 		if len(dechash.split(":")) == 2 :
 			dec,hash = dechash.split(":")
 		else:

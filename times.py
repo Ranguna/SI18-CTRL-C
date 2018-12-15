@@ -2,7 +2,7 @@ import time
 from datetime import datetime
 
 def epochtime():
-	return time.time()
+	return int(time.time()*100)/100.0
 
 def datetimetime():
 	return datetime.now()
@@ -15,8 +15,8 @@ def datetime2epoch(d):
 
 def strftime(e, f="%a %d %b %y - %X.%f"):
 	if type(e) == float:	
-		return epoch2datetime(e).strftime(f).rstrip("0")
-	return e.strftime(f).rstrip("0")
+		return epoch2datetime(e).strftime(f)[:-4]
+	return e.strftime(f)[:-4]
 
 def strf2datetime(s, f="%a %d %b %y - %X.%f"):
 	return datetime.strptime(s, f)

@@ -2,7 +2,9 @@
 import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, Gdk
+from popups import *
 from os import path, urandom, listdir, remove
+import sys
 import fcntl
 import re
 import times
@@ -10,113 +12,11 @@ import aes
 import rsa
 import hashez
 
-files_location = "./"
-file_prefix = "."
-clip_sufix = "_clip"
-hash_sufix = "_hash"
-keypair_sufix = ".pem"
-# if n files is changed, check load_users' for loop
-
-class CreateAccountDialog(Gtk.Dialog):
-	def __init__(self, parent):
-		Gtk.Dialog.__init__(self, "Nova Conta", parent, 0,
-			(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-			 "Criar", Gtk.ResponseType.OK))
-
-		self.set_default_size(150, 100)
-		self.set_border_width(10)
-
-		box = self.get_content_area()
-
-		label = Gtk.Label("Nome: ")
-		label.set_alignment(0, 0.5)
-		box.add(label)
-		
-		self.nameEntry = Gtk.Entry()
-		box.add(self.nameEntry)
-
-		label = Gtk.Label("Password: ")
-		label.set_alignment(0, 0.5)
-		box.add(label)
-		
-		self.passEntry = Gtk.Entry()
-		self.passEntry.set_visibility(False)
-		box.add(self.passEntry)
-
-		self.show_all()
-
-
-class SearchWindow(Gtk.Dialog):
-	def __init__(self, parent):
-		Gtk.Dialog.__init__(self, "Verificar", parent, 0,
-			(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-			 "Procurar", Gtk.ResponseType.OK))
-
-		self.set_default_size(150, 100)
-		self.set_border_width(10)
-
-		box = self.get_content_area()
-		
-		label = Gtk.Label("Texto: ")
-		label.set_alignment(0, 0.5)
-		box.add(label)
-		
-		self.stringEntry = Gtk.Entry()
-		self.stringEntry.set_visibility(True)
-		box.add(self.stringEntry)
-
-		self.show_all()
-
-class LoginDialog(Gtk.Dialog):
-	def __init__(self, parent, nome):
-		Gtk.Dialog.__init__(self, "Entrar", parent, 0,
-			(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-			 "Entrar", Gtk.ResponseType.OK))
-
-		self.set_default_size(150, 100)
-		self.set_border_width(10)
-
-		box = self.get_content_area()
-
-		label = Gtk.Label("Nome: ")
-		label.set_alignment(0, 0.5)
-		box.add(label)
-		
-		label = Gtk.Label(nome)
-		label.set_alignment(0, 0.5)
-		box.add(label)
-
-		label = Gtk.Label("Password: ")
-		label.set_alignment(0, 0.5)
-		box.add(label)
-		
-		self.passEntry = Gtk.Entry()
-		self.passEntry.set_visibility(False)
-		box.add(self.passEntry)
-
-		self.show_all()
-
-
-class TreeView(Gtk.TreeView):
-	def __init__(self):
-		# model
-		self.activate_on_single_click = True
-		self.model = Gtk.ListStore.new([str])
-
-		# view
-		Gtk.TreeView.__init__(self, self.model)
-
-		col_a = Gtk.TreeViewColumn('Histórico de Clipboard',
-									Gtk.CellRendererText(),
-									text=0)
-		self.append_column(col_a)
-	
-	def appendData(self, data):
-		self.model.append([data])
-	
-	def clearData(self):
-		self.model.clear()
-
+files_location = sys.argv[0] if len(sys.argv) > 1 else "./"
+file_prefix = sys.argv[1] if len(sys.argv) > 2 else "."
+clip_sufix = sys.argv[2] if len(sys.argv) > 3 else "_clip"
+hash_sufix = sys.argv[3] if len(sys.argv) > 4 else "_hash"
+keypair_sufix = sys.argv[4] if len(sys.argv) > 5 else ".pem"
 
 class Main(Gtk.Window):
 	def __init__(self):
@@ -244,24 +144,18 @@ class Main(Gtk.Window):
 			return
 
 		user = self.userCombo.get_active_text()
-		print("removing ", user)
+		# remove possible files	
 		try:
 			remove(files_location + file_prefix + user + clip_sufix)
-			print "Removed"
 		except Exception as err:
-			print err
 			pass
 		try:
 			remove(files_location + file_prefix + user + keypair_sufix)
-			print "Removed"
 		except Exception as err:
-			print err
 			pass
 		try:
 			remove(files_location + file_prefix + user + hash_sufix)
-			print "Removed"
 		except Exception as err:
-			print err
 			pass
 		
 		self.removeCurrentUser()
@@ -271,15 +165,13 @@ class Main(Gtk.Window):
 			return
 
 		(model, t_iter) = self.view.get_selection().get_selected()
-		(model, path) = self.view.get_selection().get_selected_rows()
-		print(model[path[0]][0])
+		(model, path) = self.view.get_selection().get_selected_rows()		
 		self.removeEntry(model[path[0]][0], t_iter)
 
 	def removeEntry(self, entry, iter):
 		if self.userCombo.get_active() == -1:
 			return
-
-		print("entry ", entry)
+		
 		entry = times.strf2epoch(entry)
 		clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
 		with open(clip_file, "rw+") as f:
@@ -287,26 +179,25 @@ class Main(Gtk.Window):
 			try:
 				index = -1
 				lines = f.readlines()
+				# find index of line to be removed
 				for line in range(len(lines)):
-					print(lines[line].split(":")[0], entry)
 					if lines[line].split(":")[0] == str(entry):
-						print("Found it")
 						index = line
 						break
 
 				if index != -1:
 					f.seek(0)
+					# write all lines except entry
 					f.write("".join(lines[0:index] + lines[index+1:len(lines)]))
-					# f.write("".join(lines[index+1:len(lines)]))
+
 					# remove from hashes
 					hash_file = files_location + file_prefix + self.userCombo.get_active_text() + hash_sufix
 					with open(hash_file, "rw+") as hf:
 						fcntl.flock(hf, fcntl.LOCK_EX | fcntl.LOCK_NB)
 						try:
-							hlines = hf.readline()
-							# hf.seek(0)
-							hf.write("".join(hlines[0:index] + hlines[index+1:len(hlines)]))
-							# hf.write("".join(hlines[index+1:len(hlines)]))
+							hlines = hf.readlines()
+							hf.seek(0)
+							hf.write("".join(hlines[0:index-1] + hlines[index:len(hlines)]))
 							hf.truncate()
 							fcntl.flock(hf, fcntl.LOCK_UN)
 						except Exception as err:
@@ -320,19 +211,16 @@ class Main(Gtk.Window):
 				fcntl.flock(f, fcntl.LOCK_UN)
 				raise err
 
-		
-		# remove from treeview
-
 
 	def copyEntryToClipboard(self, widget):
 		if self.userCombo.get_active() == -1: 
 			return
 
-		loginOk = False
+		copyOk = False
 		response = Gtk.ResponseType.OK
 		dialog  = None
 		passwd = None
-		while not loginOk and response == Gtk.ResponseType.OK:
+		while not copyOk and response == Gtk.ResponseType.OK:
 			if not self.checkUserIntegrity(self.userCombo.get_active_text()):
 				self.logoutCurrentUser()
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
@@ -341,12 +229,11 @@ class Main(Gtk.Window):
 			dialog = LoginDialog(self, self.userCombo.get_active_text())
 			response = dialog.run()
 
-			loginOk = False
-			if(response == Gtk.ResponseType.OK): # fez login
-				print(dialog.passEntry.get_text()) # pass
+			copyOk = False
+			if response == Gtk.ResponseType.OK: # wants to copy
 				passwd = dialog.passEntry.get_text()
-				# ver se tem todos os ficheiros
-				if(not self.checkUserIntegrity(self.userCombo.get_active_text())):
+				# integrity check on user
+				if not self.checkUserIntegrity(self.userCombo.get_active_text()):
 					self.logoutCurrentUser()
 					response == Gtk.ResponseType.OK
 					self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
@@ -355,23 +242,24 @@ class Main(Gtk.Window):
 				
 				clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
 		
-				# ver se a pass corresponde ao ficheiro
+				# check pass
 				with open(clip_file, "r") as f:
 					if not hashez.verify(passwd, f.readline().replace("\n","")):
 						self.promptError("Password incorreta.", "A password introduzida está incorreta.")
 					else:
-						loginOk = True
+						copyOk = True
 
 			dialog.destroy()
 
-		if loginOk:
+		# ccan copy
+		if copyOk:
 			(model, path) = self.view.get_selection().get_selected_rows()
 			entry = times.strf2epoch(model[path[0]][0])
 
 			clip_file = files_location + file_prefix + self.userCombo.get_active_text() + clip_sufix
 			encMessage = ''
 			encRandomBytes = ''
-			with open(clip_file, "rw+") as f:
+			with open(clip_file, "r") as f:
 				lines = f.readlines()
 				for line in range(len(lines)):
 					if lines[line].split(":")[0] == str(entry):
@@ -479,8 +367,7 @@ class Main(Gtk.Window):
 		loginOk = False
 		response = Gtk.ResponseType.OK
 		dialog  = None
-		passwd = None
-		print(widget.get_active_text())
+		passwd = None		
 		while not loginOk and response == Gtk.ResponseType.OK:
 			if not self.checkUserIntegrity(widget.get_active_text()):
 				self.promptError("User inválido.", "Os ficheiros do utilizador foram corrompidos.")
@@ -491,8 +378,7 @@ class Main(Gtk.Window):
 			response = dialog.run()
 
 			loginOk = False
-			if(response == Gtk.ResponseType.OK): # fez login
-				print(dialog.passEntry.get_text()) # pass
+			if(response == Gtk.ResponseType.OK): # fez login				
 				passwd = dialog.passEntry.get_text()
 				# ver se tem todos os ficheiros
 				if(not self.checkUserIntegrity(widget.get_active_text())):
@@ -530,8 +416,7 @@ class Main(Gtk.Window):
 			## carregar par de chaves
 			try:
 				self.keyPair = rsa.KeyPair(keypair_file, passwd)
-			except Exception as err:
-				print("Error while loading keys: " +err.message)
+			except Exception as err:				
 				self.logoutCurrentUser()
 				return
 
@@ -558,10 +443,8 @@ class Main(Gtk.Window):
 					raise err
 
 
-			self.toggleUserButtons(True)
-			print("OK")
-		else:
-			print("not logged")
+			self.toggleUserButtons(True)			
+		else:			
 			self.logoutCurrentUser()
 
 	def newUser(self, widget):
@@ -626,16 +509,14 @@ class Main(Gtk.Window):
 		if self.userCombo.get_active() == -1:
 			return
 
-		a,b =treeview.get_selection().get_selected_rows()
+		a,b = treeview.get_selection().get_selected_rows()
 		self.toggleSelectionButtons(True)
-		# print("a ", a[b[0]][0])
 
 	def onClickClipSelection(self, widget, row, col):
 		# não fazer nada se nenhum utilizador estiver ligado
 		if self.userCombo.get_active() == -1:
 			return False
-
-		print(self.view.model[row][:][0])
+		
 		return True
 
 	def onClipChange(self, *args):
@@ -649,7 +530,7 @@ class Main(Gtk.Window):
 
 			# do msg encryption scheme
 			msg = self.clipboard.wait_for_text()
-			randomBytes = urandom(min(self.keyPair.publicKey.size()/8, len(msg))).encode("hex")
+			randomBytes = urandom(min(self.keyPair.max_len()/2, len(msg))).encode("hex")
 			
 			criptogram = aes.AESCipher(randomBytes).encrypt(msg)
 			encRandomBytes = self.keyPair.encrypt(randomBytes)
@@ -657,7 +538,6 @@ class Main(Gtk.Window):
 			encMsg = criptogram + ":"+ encRandomBytes
 
 			entryTime = times.epochtime()
-			print("entry time",entryTime)
 			msgEntry = str(entryTime) + ":"+ encMsg
 
 			# save to end of file
